@@ -1,0 +1,401 @@
+MAP
+  NAME "GFS"
+  STATUS ON
+  EXTENT -180 -90 180 90
+  SIZE 256 256
+  UNITS DD
+  # Debug level 2 = timing info for performance analysis
+  DEBUG 2
+  CONFIG "MS_ERRORFILE" "stderr"
+  CONFIG "CPL_VSIL_CURL_ALLOWED_EXTENSIONS" ".grb2 .grib2 .nc"
+  # Enable GDAL debug for raster performance analysis
+  CONFIG "CPL_DEBUG" "OFF"
+
+  WEB
+    METADATA
+      "wms_title"           "GFS on MapServer"
+      "wms_onlineresource"  "http://localhost:8080/cgi-bin/mapserv?MAP=GFS&"
+      "wms_enable_request"  "*"
+      "wms_allow_getmap_without_styles" "true"
+      "wms_srs"             "EPSG:4326 EPSG:3857"
+    END
+  END
+
+  PROJECTION
+    "init=epsg:4326"
+  END
+
+  # Temperature color ramp: blue (cold) -> cyan -> green -> yellow -> red (hot)
+  SYMBOL
+    NAME "gradient"
+    TYPE ELLIPSE
+    POINTS 1 1 END
+    FILLED TRUE
+  END
+
+  # 2m Temperature (Band 580) - values typically 220K to 320K (-53C to 47C)
+  LAYER
+    NAME "t2m"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=580"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 243)  # Below -30C - deep blue
+      STYLE
+        COLORRANGE 20 20 120  40 80 180
+        DATARANGE 220 243
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 243 AND [pixel] < 263)  # -30C to -10C - blue to cyan
+      STYLE
+        COLORRANGE 40 80 180  80 180 220
+        DATARANGE 243 263
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 263 AND [pixel] < 278)  # -10C to 5C - cyan to green
+      STYLE
+        COLORRANGE 80 180 220  80 200 80
+        DATARANGE 263 278
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 278 AND [pixel] < 293)  # 5C to 20C - green to yellow
+      STYLE
+        COLORRANGE 80 200 80  240 240 60
+        DATARANGE 278 293
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 293 AND [pixel] < 308)  # 20C to 35C - yellow to orange
+      STYLE
+        COLORRANGE 240 240 60  240 140 40
+        DATARANGE 293 308
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 308)  # Above 35C - orange to red
+      STYLE
+        COLORRANGE 240 140 40  180 20 20
+        DATARANGE 308 323
+      END
+    END
+    METADATA
+      "wms_title" "2m Temperature"
+      "wms_abstract" "Temperature at 2 meters above ground level (Kelvin)"
+    END
+  END
+
+  # 2m Relative Humidity (Band 583) - 0 to 100%
+  LAYER
+    NAME "rh2m"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=583"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 30)
+      STYLE
+        COLORRANGE 180 100 50  220 180 100
+        DATARANGE 0 30
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 30 AND [pixel] < 60)
+      STYLE
+        COLORRANGE 220 180 100  150 200 150
+        DATARANGE 30 60
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 60 AND [pixel] < 80)
+      STYLE
+        COLORRANGE 150 200 150  80 160 200
+        DATARANGE 60 80
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 80)
+      STYLE
+        COLORRANGE 80 160 200  30 80 160
+        DATARANGE 80 100
+      END
+    END
+    METADATA
+      "wms_title" "2m Relative Humidity"
+      "wms_abstract" "Relative humidity at 2 meters above ground level (%)"
+    END
+  END
+
+  # Wind Gust (Band 14) - typically 0 to 50 m/s
+  LAYER
+    NAME "gust"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=14"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 5)
+      STYLE
+        COLORRANGE 200 230 200  150 210 150
+        DATARANGE 0 5
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 5 AND [pixel] < 15)
+      STYLE
+        COLORRANGE 150 210 150  100 180 220
+        DATARANGE 5 15
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 15 AND [pixel] < 25)
+      STYLE
+        COLORRANGE 100 180 220  220 220 80
+        DATARANGE 15 25
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 25 AND [pixel] < 35)
+      STYLE
+        COLORRANGE 220 220 80  220 140 50
+        DATARANGE 25 35
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 35)
+      STYLE
+        COLORRANGE 220 140 50  180 40 40
+        DATARANGE 35 60
+      END
+    END
+    METADATA
+      "wms_title" "Wind Gust"
+      "wms_abstract" "Wind speed gust at surface (m/s)"
+    END
+  END
+
+  # Mean Sea Level Pressure (Band 1) - typically 97000 to 105000 Pa
+  LAYER
+    NAME "mslp"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 99000)
+      STYLE
+        COLORRANGE 100 50 150  150 100 200
+        DATARANGE 97000 99000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 99000 AND [pixel] < 101000)
+      STYLE
+        COLORRANGE 150 100 200  200 200 200
+        DATARANGE 99000 101000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 101000 AND [pixel] < 103000)
+      STYLE
+        COLORRANGE 200 200 200  100 150 200
+        DATARANGE 101000 103000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 103000)
+      STYLE
+        COLORRANGE 100 150 200  50 80 150
+        DATARANGE 103000 105000
+      END
+    END
+    METADATA
+      "wms_title" "Mean Sea Level Pressure"
+      "wms_abstract" "Pressure reduced to mean sea level (Pa)"
+    END
+  END
+
+  # Precipitable Water (Band 604) - typically 0 to 70 kg/m2
+  LAYER
+    NAME "pwat"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=604"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 15)
+      STYLE
+        COLORRANGE 255 255 220  200 230 180
+        DATARANGE 0 15
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 15 AND [pixel] < 30)
+      STYLE
+        COLORRANGE 200 230 180  120 200 160
+        DATARANGE 15 30
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 30 AND [pixel] < 45)
+      STYLE
+        COLORRANGE 120 200 160  60 150 200
+        DATARANGE 30 45
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 45)
+      STYLE
+        COLORRANGE 60 150 200  30 60 140
+        DATARANGE 45 70
+      END
+    END
+    METADATA
+      "wms_title" "Precipitable Water"
+      "wms_abstract" "Total atmospheric column precipitable water (kg/m2)"
+    END
+  END
+
+  # CAPE (Band 602) - 0 to 5000+ J/kg
+  LAYER
+    NAME "cape"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=602"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 500)
+      STYLE
+        COLORRANGE 220 240 220  180 220 180
+        DATARANGE 0 500
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 500 AND [pixel] < 1500)
+      STYLE
+        COLORRANGE 180 220 180  240 240 100
+        DATARANGE 500 1500
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 1500 AND [pixel] < 3000)
+      STYLE
+        COLORRANGE 240 240 100  240 160 60
+        DATARANGE 1500 3000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 3000)
+      STYLE
+        COLORRANGE 240 160 60  180 40 40
+        DATARANGE 3000 5000
+      END
+    END
+    METADATA
+      "wms_title" "CAPE"
+      "wms_abstract" "Convective Available Potential Energy (J/kg) - indicates thunderstorm potential"
+    END
+  END
+
+  # Composite Radar Reflectivity (Band 9) - typically -10 to 75 dBZ
+  LAYER
+    NAME "refc"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=9"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 20)
+      STYLE
+        COLORRANGE 200 200 200  100 200 100
+        DATARANGE 0 20
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 20 AND [pixel] < 35)
+      STYLE
+        COLORRANGE 100 200 100  240 240 60
+        DATARANGE 20 35
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 35 AND [pixel] < 50)
+      STYLE
+        COLORRANGE 240 240 60  240 100 50
+        DATARANGE 35 50
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 50)
+      STYLE
+        COLORRANGE 240 100 50  180 30 120
+        DATARANGE 50 75
+      END
+    END
+    METADATA
+      "wms_title" "Composite Reflectivity"
+      "wms_abstract" "Maximum/composite radar reflectivity (dBZ)"
+    END
+  END
+
+  # Visibility (Band 10) - 0 to 24000+ meters
+  LAYER
+    NAME "vis"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=10"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 1000)
+      STYLE
+        COLORRANGE 120 60 80  180 120 140
+        DATARANGE 0 1000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 1000 AND [pixel] < 5000)
+      STYLE
+        COLORRANGE 180 120 140  220 200 180
+        DATARANGE 1000 5000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 5000 AND [pixel] < 15000)
+      STYLE
+        COLORRANGE 220 200 180  180 220 240
+        DATARANGE 5000 15000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 15000)
+      STYLE
+        COLORRANGE 180 220 240  100 180 240
+        DATARANGE 15000 24000
+      END
+    END
+    METADATA
+      "wms_title" "Visibility"
+      "wms_abstract" "Surface visibility (meters)"
+    END
+  END
+
+END

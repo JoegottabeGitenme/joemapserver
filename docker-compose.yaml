@@ -1,0 +1,101 @@
+services:
+  mapserver:
+    build: .
+    environment:
+      # Unset the restrictive pattern from base image
+      - MS_MAP_PATTERN=
+      # Enable MapServer debug logging (levels 0-5)
+      - MS_DEBUGLEVEL=2
+    volumes:
+      - ./data:/data:rw
+      - mapserver-logs:/var/log/mapserver
+    networks: [lab]
+
+  mapcache:
+    image: camptocamp/mapcache:1.4
+    volumes:
+      - ./mapcache.xml:/etc/mapcache/mapcache.xml:ro
+      - cache:/tmp/cache
+    networks: [lab]
+
+  nginx:
+    image: nginx:alpine
+    ports: ["8080:80"]
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./viewer.html:/usr/share/nginx/html/viewer.html:ro
+      - nginx-logs:/var/log/nginx
+    # Ensure logs are written to files, not symlinks to stdout/stderr
+    command: >
+      /bin/sh -c "rm -f /var/log/nginx/access.log /var/log/nginx/error.log &&
+      touch /var/log/nginx/access.log /var/log/nginx/error.log &&
+      nginx -g 'daemon off;'"
+    depends_on: [mapserver, mapcache]
+    networks: [lab]
+
+  # Log aggregation with Loki
+  loki:
+    image: grafana/loki:2.9.0
+    ports: ["3100:3100"]
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    networks: [lab]
+
+  # Log shipper - collects logs and sends to Loki
+  promtail:
+    image: grafana/promtail:2.9.0
+    volumes:
+      - ./promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - nginx-logs:/var/log/nginx:ro
+      - mapserver-logs:/var/log/mapserver:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on: [loki, nginx, mapserver]
+    networks: [lab]
+
+  prometheus:
+    image: prom/prometheus
+    ports: ["9090:9090"]
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks: [lab]
+
+  # nginx-exporter for detailed metrics
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:0.11
+    command: -nginx.scrape-uri=http://nginx:80/nginx_status
+    depends_on: [nginx]
+    networks: [lab]
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    ports: ["3000:3000"]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-worldmap-panel
+    volumes:
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on: [prometheus, loki]
+    networks: [lab]
+
+  locust:
+    image: locustio/locust
+    ports: ["8089:8089"]
+    volumes: ["./locustfile.py:/mnt/locustfile.py:ro"]
+    command: -f /mnt/locustfile.py --web-host 0.0.0.0
+    networks: [lab]
+
+networks:
+  lab:
+
+volumes:
+  cache:
+  nginx-logs:
+  mapserver-logs:
+  loki-data:
+  grafana-data:
