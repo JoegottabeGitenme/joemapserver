@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GFS WMS Viewer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        .info-panel {
+            padding: 10px 14px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            max-width: 300px;
+        }
+        .info-panel h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .info-panel p {
+            margin: 5px 0;
+            font-size: 12px;
+            color: #666;
+        }
+        .leaflet-control-layers {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .leaflet-control-layers-expanded {
+            padding: 10px 14px;
+        }
+        .leaflet-control-layers-separator {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map centered on North America
+        const map = L.map('map', {
+            center: [40, -95],
+            zoom: 4,
+            maxZoom: 10,
+            minZoom: 2
+        });
+
+        // WMS base URL
+        const wmsUrl = 'http://localhost:8080/cgi-bin/mapserv?MAP=GFS&';
+
+        // Base layers
+        const baseLayers = {
+            'Carto Light': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                subdomains: 'abcd'
+            }),
+            'Carto Dark': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                subdomains: 'abcd'
+            }),
+            'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }),
+            'ESRI World Imagery': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '&copy; Esri'
+            })
+        };
+
+        // Add default base layer
+        baseLayers['Carto Light'].addTo(map);
+
+        // Create WMS layer factory using ImageOverlay approach for seamless rendering
+        // Using L.tileLayer.wms with large tile size to reduce seams
+        function createWmsLayer(layerName, options = {}) {
+            return L.tileLayer.wms(wmsUrl, {
+                layers: layerName,
+                format: 'image/png',
+                transparent: true,
+                opacity: options.opacity || 0.75,
+                attribution: 'GFS Data via MapServer',
+                // Use larger tiles to minimize seam visibility
+                tileSize: 256,
+                // Disable tile caching issues
+                updateWhenIdle: false,
+                updateWhenZooming: false,
+                ...options
+            });
+        }
+
+        // GFS WMS Overlay Layers
+        const overlayLayers = {
+            '2m Temperature': createWmsLayer('t2m'),
+            '2m Relative Humidity': createWmsLayer('rh2m'),
+            'Wind Gust': createWmsLayer('gust'),
+            'Mean Sea Level Pressure': createWmsLayer('mslp'),
+            'Precipitable Water': createWmsLayer('pwat'),
+            'CAPE (Storm Energy)': createWmsLayer('cape'),
+            'Composite Reflectivity': createWmsLayer('refc'),
+            'Visibility': createWmsLayer('vis')
+        };
+
+        // Track current overlay
+        let currentOverlay = overlayLayers['2m Temperature'];
+        currentOverlay.addTo(map);
+
+        // Add layer control
+        const layerControl = L.control.layers(baseLayers, overlayLayers, {
+            collapsed: false,
+            position: 'topright'
+        }).addTo(map);
+
+        // Handle overlay changes - ensure only one overlay at a time for performance
+        map.on('overlayadd', function(e) {
+            // Remove other overlays when a new one is added
+            Object.values(overlayLayers).forEach(layer => {
+                if (layer !== e.layer && map.hasLayer(layer)) {
+                    map.removeLayer(layer);
+                }
+            });
+            currentOverlay = e.layer;
+            // Apply current opacity
+            const opacitySlider = document.getElementById('opacity-slider');
+            if (opacitySlider) {
+                currentOverlay.setOpacity(opacitySlider.value / 100);
+            }
+        });
+
+        // Info panel
+        const info = L.control({position: 'topleft'});
+        info.onAdd = function(map) {
+            this._div = L.DomUtil.create('div', 'info-panel');
+            this.update();
+            return this._div;
+        };
+        info.update = function() {
+            this._div.innerHTML = `
+                <h4>GFS WMS Viewer</h4>
+                <p><strong>Data:</strong> NOAA GFS 0.25&deg;</p>
+                <p><strong>Server:</strong> MapServer 8.2</p>
+                <p style="margin-top: 10px;">
+                    <a href="http://localhost:8080/cgi-bin/mapserv?MAP=GFS&SERVICE=WMS&REQUEST=GetCapabilities" 
+                       target="_blank" style="font-size: 11px;">
+                        WMS GetCapabilities
+                    </a>
+                </p>
+                <p style="margin-top: 5px;">
+                    <a href="http://localhost:8089" target="_blank" style="font-size: 11px;">
+                        Locust Load Test
+                    </a>
+                    &nbsp;|&nbsp;
+                    <a href="http://localhost:3000" target="_blank" style="font-size: 11px;">
+                        Grafana
+                    </a>
+                </p>
+            `;
+        };
+        info.addTo(map);
+
+        // Coordinates display
+        const coords = L.control({position: 'bottomleft'});
+        coords.onAdd = function(map) {
+            this._div = L.DomUtil.create('div', 'info-panel');
+            this._div.style.padding = '5px 10px';
+            this._div.innerHTML = 'Lat: --, Lon: --';
+            return this._div;
+        };
+        coords.addTo(map);
+
+        map.on('mousemove', function(e) {
+            coords._div.innerHTML = `Lat: ${e.latlng.lat.toFixed(4)}, Lon: ${e.latlng.lng.toFixed(4)}`;
+        });
+
+        // Scale bar
+        L.control.scale({imperial: false}).addTo(map);
+
+        // Opacity control
+        const opacityControl = L.control({position: 'bottomright'});
+        opacityControl.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'info-panel');
+            div.innerHTML = `
+                <label style="font-size: 12px; display: block; margin-bottom: 5px;">
+                    <strong>Layer Opacity</strong>
+                </label>
+                <input type="range" id="opacity-slider" min="0" max="100" value="75" 
+                       style="width: 120px; cursor: pointer;">
+                <span id="opacity-value" style="font-size: 11px; margin-left: 5px;">75%</span>
+            `;
+            
+            // Prevent map drag when using slider
+            L.DomEvent.disableClickPropagation(div);
+            
+            return div;
+        };
+        opacityControl.addTo(map);
+
+        // Handle opacity changes
+        document.getElementById('opacity-slider').addEventListener('input', function(e) {
+            const opacity = e.target.value / 100;
+            document.getElementById('opacity-value').textContent = e.target.value + '%';
+            
+            // Update current overlay
+            if (currentOverlay && map.hasLayer(currentOverlay)) {
+                currentOverlay.setOpacity(opacity);
+            }
+        });
+    </script>
+</body>
+</html>

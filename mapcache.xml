@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapcache>
+    <!-- Source: MapServer WMS -->
+    <source name="gfs-wms" type="wms">
+        <http>
+            <url>http://mapserver:9000/cgi-bin/mapserv?MAP=/maps/gfs.map</url>
+        </http>
+        <getmap>
+            <params>
+                <FORMAT>image/png</FORMAT>
+                <LAYERS>t2m</LAYERS>
+            </params>
+        </getmap>
+    </source>
+
+    <!-- Grid: Standard Web Mercator (Google/OSM compatible) -->
+    <grid name="webmerc">
+        <metadata>
+            <title>Web Mercator</title>
+        </metadata>
+        <srs>EPSG:3857</srs>
+        <size>256 256</size>
+        <extent>-20037508.34 -20037508.34 20037508.34 20037508.34</extent>
+        <resolutions>
+            156543.0339280410
+            78271.5169640205
+            39135.7584820102
+            19567.8792410051
+            9783.9396205026
+            4891.9698102513
+            2445.9849051256
+            1222.9924525628
+            611.4962262814
+        </resolutions>
+    </grid>
+
+    <!-- Grid: WGS84 Geographic -->
+    <grid name="wgs84">
+        <metadata>
+            <title>WGS84</title>
+        </metadata>
+        <srs>EPSG:4326</srs>
+        <size>256 256</size>
+        <extent>-180 -90 180 90</extent>
+        <resolutions>
+            0.703125
+            0.3515625
+            0.17578125
+            0.087890625
+            0.0439453125
+            0.02197265625
+            0.010986328125
+            0.0054931640625
+            0.00274658203125
+        </resolutions>
+    </grid>
+
+    <!-- Tileset: GFS 2m Temperature -->
+    <tileset name="gfs-t2m">
+        <source>gfs-wms</source>
+        <grid>webmerc</grid>
+        <grid>wgs84</grid>
+        <format>PNG</format>
+        <metatile>8 8</metatile>
+        <metabuffer>0</metabuffer>
+        <expires>3600</expires>  <!-- 1 hour cache -->
+        <cache>disk</cache>
+    </tileset>
+
+    <!-- Cache: Disk-based -->
+    <cache name="disk" type="disk">
+        <base>/tmp/cache</base>
+    </cache>
+
+    <!-- Format definitions -->
+    <format name="PNG" type="PNG">
+        <compression>fast</compression>
+    </format>
+
+    <!-- Service configuration -->
+    <service type="wmts" enabled="true"/>
+    <service type="tms" enabled="true"/>
+    <service type="wms" enabled="true"/>
+
+    <!-- Default configuration -->
+    <default_format>PNG</default_format>
+
+    <!-- Errors as empty tiles (prevents error cascading in load tests) -->
+    <errors>empty_img</errors>
+</mapcache>
