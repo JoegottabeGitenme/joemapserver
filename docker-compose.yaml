@@ -14,8 +14,8 @@ services:
   mapcache:
     image: camptocamp/mapcache:1.4
     volumes:
-      - ./mapcache.xml:/etc/mapcache/mapcache.xml:ro
-      - cache:/tmp/cache
+      - ./mapcache.xml:/mapcache/mapcache.xml:ro
+      - ./cache:/tmp/cache:rw
     networks: [lab]
 
   nginx:
@@ -24,6 +24,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./viewer.html:/usr/share/nginx/html/viewer.html:ro
+      - ./reports:/var/www/reports:ro
       - nginx-logs:/var/log/nginx
     # Ensure logs are written to files, not symlinks to stdout/stderr
     command: >
@@ -62,6 +63,21 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
     networks: [lab]
 
+  # Node exporter for host metrics (CPU per core, memory, disk I/O)
+  node-exporter:
+    image: prom/node-exporter:latest
+    ports: ["9100:9100"]
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks: [lab]
+
   # nginx-exporter for detailed metrics
   nginx-exporter:
     image: nginx/nginx-prometheus-exporter:0.11
@@ -86,7 +102,9 @@ services:
   locust:
     image: locustio/locust
     ports: ["8089:8089"]
-    volumes: ["./locustfile.py:/mnt/locustfile.py:ro"]
+    volumes:
+      - ./locustfile.py:/mnt/locustfile.py:ro
+      - ./reports:/mnt/reports:rw
     command: -f /mnt/locustfile.py --web-host 0.0.0.0
     networks: [lab]
 
@@ -94,7 +112,7 @@ networks:
   lab:
 
 volumes:
-  cache:
+  mapcache-data:
   nginx-logs:
   mapserver-logs:
   loki-data:

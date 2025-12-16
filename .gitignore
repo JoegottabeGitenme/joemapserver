@@ -1,3 +1,6 @@
 /target
 /data/*
 .idea/
+/cache/
+/loadtest-output.log
+/reports/

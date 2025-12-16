@@ -1,0 +1,402 @@
+MAP
+  NAME "MRMS"
+  STATUS ON
+  # MRMS CONUS extent (approximate)
+  EXTENT -130 20 -60 55
+  SIZE 256 256
+  UNITS DD
+  DEBUG 5
+  CONFIG "MS_ERRORFILE" "stderr"
+  CONFIG "CPL_DEBUG" "ON"
+  CONFIG "GDAL_CACHEMAX" "512"
+
+  FONTSET "/etc/mapserver/fonts/fonts.txt"
+
+  WEB
+    METADATA
+      "wms_title"           "MRMS Radar on MapServer"
+      "wms_onlineresource"  "http://localhost:8080/cgi-bin/mapserv?MAP=MRMS&"
+      "wms_enable_request"  "*"
+      "wms_allow_getmap_without_styles" "true"
+      "wms_srs"             "EPSG:4326 EPSG:3857"
+    END
+  END
+
+  PROJECTION
+    "init=epsg:4326"
+  END
+
+  SYMBOL
+    NAME "circle"
+    TYPE ELLIPSE
+    POINTS 1 1 END
+    FILLED TRUE
+  END
+
+  #============================================================================
+  # COMPOSITE REFLECTIVITY - GRADIENT STYLE (NWS Reflectivity Colors)
+  #============================================================================
+  LAYER
+    NAME "refl"
+    GROUP "reflectivity"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/mrms/refl_latest.grib2"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    # Standard NWS reflectivity color scale (dBZ)
+    CLASS
+      EXPRESSION ([pixel] >= 5 AND [pixel] < 15)
+      STYLE
+        COLORRANGE 0 236 236  0 160 160
+        DATARANGE 5 15
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 15 AND [pixel] < 25)
+      STYLE
+        COLORRANGE 0 200 0  0 144 0
+        DATARANGE 15 25
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 25 AND [pixel] < 35)
+      STYLE
+        COLORRANGE 255 255 0  255 200 0
+        DATARANGE 25 35
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 35 AND [pixel] < 45)
+      STYLE
+        COLORRANGE 255 144 0  255 0 0
+        DATARANGE 35 45
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 45 AND [pixel] < 55)
+      STYLE
+        COLORRANGE 200 0 0  144 0 0
+        DATARANGE 45 55
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 55 AND [pixel] < 65)
+      STYLE
+        COLORRANGE 255 0 255  144 0 144
+        DATARANGE 55 65
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 65)
+      STYLE
+        COLORRANGE 144 0 144  100 100 100
+        DATARANGE 65 75
+      END
+    END
+    METADATA
+      "wms_title" "Composite Reflectivity (Gradient)"
+      "wms_abstract" "MRMS Merged Reflectivity QC Composite - NWS color scale"
+      "wms_style" "gradient"
+    END
+  END
+
+  #============================================================================
+  # COMPOSITE REFLECTIVITY - CONTOUR STYLE
+  #============================================================================
+  LAYER
+    NAME "refl_contour"
+    GROUP "reflectivity"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/mrms/refl_latest.grib2"
+    PROCESSING "BANDS=1"
+    PROCESSING "CONTOUR_INTERVAL=10"
+    CLASS
+      NAME "Reflectivity Contours"
+      STYLE
+        COLOR 100 100 100
+        WIDTH 1.5
+      END
+      LABEL
+        COLOR 40 40 40
+        OUTLINECOLOR 255 255 255
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 8
+        POSITION AUTO
+        ANGLE FOLLOW
+        BUFFER 3
+        MINDISTANCE 150
+      END
+    END
+    METADATA
+      "wms_title" "Composite Reflectivity (Contours)"
+      "wms_abstract" "MRMS reflectivity contours every 10 dBZ"
+      "wms_style" "contour"
+    END
+  END
+
+  #============================================================================
+  # PRECIPITATION RATE - GRADIENT STYLE
+  #============================================================================
+  LAYER
+    NAME "precip_rate"
+    GROUP "precipitation"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/mrms/precip_rate_latest.grib2"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    # Precipitation rate mm/hr
+    CLASS
+      EXPRESSION ([pixel] >= 0.1 AND [pixel] < 2.5)
+      STYLE
+        COLORRANGE 200 240 200  100 200 100
+        DATARANGE 0.1 2.5
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 2.5 AND [pixel] < 7.5)
+      STYLE
+        COLORRANGE 100 200 100  255 255 0
+        DATARANGE 2.5 7.5
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 7.5 AND [pixel] < 20)
+      STYLE
+        COLORRANGE 255 255 0  255 140 0
+        DATARANGE 7.5 20
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 20 AND [pixel] < 50)
+      STYLE
+        COLORRANGE 255 140 0  255 0 0
+        DATARANGE 20 50
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 50)
+      STYLE
+        COLORRANGE 255 0 0  150 0 150
+        DATARANGE 50 100
+      END
+    END
+    METADATA
+      "wms_title" "Precipitation Rate (Gradient)"
+      "wms_abstract" "MRMS instantaneous precipitation rate mm/hr"
+      "wms_style" "gradient"
+    END
+  END
+
+  #============================================================================
+  # PRECIPITATION RATE - CONTOUR STYLE
+  #============================================================================
+  LAYER
+    NAME "precip_rate_contour"
+    GROUP "precipitation"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/mrms/precip_rate_latest.grib2"
+    PROCESSING "BANDS=1"
+    PROCESSING "CONTOUR_INTERVAL=5"
+    CLASS
+      NAME "Precip Rate Contours"
+      STYLE
+        COLOR 0 100 200
+        WIDTH 1.5
+      END
+      LABEL
+        COLOR 0 70 150
+        OUTLINECOLOR 255 255 255
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 8
+        POSITION AUTO
+        ANGLE FOLLOW
+        BUFFER 3
+        MINDISTANCE 150
+      END
+    END
+    METADATA
+      "wms_title" "Precipitation Rate (Contours)"
+      "wms_abstract" "MRMS precip rate contours every 5 mm/hr"
+      "wms_style" "contour"
+    END
+  END
+
+  #============================================================================
+  # 1-HOUR QPE - GRADIENT STYLE
+  #============================================================================
+  LAYER
+    NAME "qpe_01h"
+    GROUP "qpe"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/mrms/qpe_01h_latest.grib2"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    # QPE in mm (1-hour accumulation)
+    CLASS
+      EXPRESSION ([pixel] >= 0.1 AND [pixel] < 2)
+      STYLE
+        COLORRANGE 200 240 200  150 220 150
+        DATARANGE 0.1 2
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 2 AND [pixel] < 6)
+      STYLE
+        COLORRANGE 150 220 150  100 180 100
+        DATARANGE 2 6
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 6 AND [pixel] < 12)
+      STYLE
+        COLORRANGE 255 255 100  255 200 0
+        DATARANGE 6 12
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 12 AND [pixel] < 25)
+      STYLE
+        COLORRANGE 255 200 0  255 100 0
+        DATARANGE 12 25
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 25 AND [pixel] < 50)
+      STYLE
+        COLORRANGE 255 100 0  200 0 0
+        DATARANGE 25 50
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 50)
+      STYLE
+        COLORRANGE 200 0 0  150 0 150
+        DATARANGE 50 100
+      END
+    END
+    METADATA
+      "wms_title" "1-Hour QPE (Gradient)"
+      "wms_abstract" "MRMS 1-hour radar-only quantitative precipitation estimate"
+      "wms_style" "gradient"
+    END
+  END
+
+  #============================================================================
+  # 1-HOUR QPE - CONTOUR STYLE
+  #============================================================================
+  LAYER
+    NAME "qpe_01h_contour"
+    GROUP "qpe"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/mrms/qpe_01h_latest.grib2"
+    PROCESSING "BANDS=1"
+    PROCESSING "CONTOUR_INTERVAL=5"
+    CLASS
+      NAME "QPE Contours"
+      STYLE
+        COLOR 0 150 50
+        WIDTH 1.5
+      END
+      LABEL
+        COLOR 0 100 30
+        OUTLINECOLOR 255 255 255
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 8
+        POSITION AUTO
+        ANGLE FOLLOW
+        BUFFER 3
+        MINDISTANCE 150
+      END
+    END
+    METADATA
+      "wms_title" "1-Hour QPE (Contours)"
+      "wms_abstract" "MRMS 1-hour QPE contours every 5 mm"
+      "wms_style" "contour"
+    END
+  END
+
+  #============================================================================
+  # BASE REFLECTIVITY - GRADIENT STYLE
+  #============================================================================
+  LAYER
+    NAME "base_refl"
+    GROUP "base_reflectivity"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/mrms/base_refl_latest.grib2"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    # Same NWS color scale as composite
+    CLASS
+      EXPRESSION ([pixel] >= 5 AND [pixel] < 15)
+      STYLE
+        COLORRANGE 0 236 236  0 160 160
+        DATARANGE 5 15
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 15 AND [pixel] < 25)
+      STYLE
+        COLORRANGE 0 200 0  0 144 0
+        DATARANGE 15 25
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 25 AND [pixel] < 35)
+      STYLE
+        COLORRANGE 255 255 0  255 200 0
+        DATARANGE 25 35
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 35 AND [pixel] < 45)
+      STYLE
+        COLORRANGE 255 144 0  255 0 0
+        DATARANGE 35 45
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 45 AND [pixel] < 55)
+      STYLE
+        COLORRANGE 200 0 0  144 0 0
+        DATARANGE 45 55
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 55 AND [pixel] < 65)
+      STYLE
+        COLORRANGE 255 0 255  144 0 144
+        DATARANGE 55 65
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 65)
+      STYLE
+        COLORRANGE 144 0 144  100 100 100
+        DATARANGE 65 75
+      END
+    END
+    METADATA
+      "wms_title" "Base Reflectivity (Gradient)"
+      "wms_abstract" "MRMS Merged Base Reflectivity - lowest tilt"
+      "wms_style" "gradient"
+    END
+  END
+
+END

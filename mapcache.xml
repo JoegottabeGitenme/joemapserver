@@ -1,14 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <mapcache>
-    <!-- Source: MapServer WMS -->
-    <source name="gfs-wms" type="wms">
+    <!-- Source: MapServer WMS for t2m layer -->
+    <source name="gfs-t2m-wms" type="wms">
         <http>
-            <url>http://mapserver:9000/cgi-bin/mapserv?MAP=/maps/gfs.map</url>
+            <url>http://mapserver:80/?MAP=GFS</url>
         </http>
         <getmap>
             <params>
                 <FORMAT>image/png</FORMAT>
                 <LAYERS>t2m</LAYERS>
+            </params>
+        </getmap>
+    </source>
+
+    <!-- Source: MapServer WMS for pwat layer -->
+    <source name="gfs-pwat-wms" type="wms">
+        <http>
+            <url>http://mapserver:80/?MAP=GFS</url>
+        </http>
+        <getmap>
+            <params>
+                <FORMAT>image/png</FORMAT>
+                <LAYERS>pwat</LAYERS>
+            </params>
+        </getmap>
+    </source>
+
+    <!-- Source: MapServer WMS for cape layer -->
+    <source name="gfs-cape-wms" type="wms">
+        <http>
+            <url>http://mapserver:80/?MAP=GFS</url>
+        </http>
+        <getmap>
+            <params>
+                <FORMAT>image/png</FORMAT>
+                <LAYERS>cape</LAYERS>
             </params>
         </getmap>
     </source>
@@ -57,13 +83,37 @@
 
     <!-- Tileset: GFS 2m Temperature -->
     <tileset name="gfs-t2m">
-        <source>gfs-wms</source>
+        <source>gfs-t2m-wms</source>
         <grid>webmerc</grid>
         <grid>wgs84</grid>
         <format>PNG</format>
         <metatile>8 8</metatile>
         <metabuffer>0</metabuffer>
-        <expires>3600</expires>  <!-- 1 hour cache -->
+        <expires>3600</expires>
+        <cache>disk</cache>
+    </tileset>
+
+    <!-- Tileset: GFS Precipitable Water -->
+    <tileset name="gfs-pwat">
+        <source>gfs-pwat-wms</source>
+        <grid>webmerc</grid>
+        <grid>wgs84</grid>
+        <format>PNG</format>
+        <metatile>8 8</metatile>
+        <metabuffer>0</metabuffer>
+        <expires>3600</expires>
+        <cache>disk</cache>
+    </tileset>
+
+    <!-- Tileset: GFS CAPE -->
+    <tileset name="gfs-cape">
+        <source>gfs-cape-wms</source>
+        <grid>webmerc</grid>
+        <grid>wgs84</grid>
+        <format>PNG</format>
+        <metatile>8 8</metatile>
+        <metabuffer>0</metabuffer>
+        <expires>3600</expires>
         <cache>disk</cache>
     </tileset>
 

@@ -1,0 +1,152 @@
+MAP
+  NAME "GOES"
+  STATUS ON
+  EXTENT -180 14 180 54
+  SIZE 256 256
+  UNITS DD
+  DEBUG 5
+  CONFIG "MS_ERRORFILE" "stderr"
+  CONFIG "GDAL_CACHEMAX" "512"
+
+  WEB
+    METADATA
+      "wms_title"           "GOES Satellite on MapServer"
+      "wms_onlineresource"  "http://localhost:8080/cgi-bin/mapserv?MAP=GOES&"
+      "wms_enable_request"  "*"
+      "wms_allow_getmap_without_styles" "true"
+      "wms_srs"             "EPSG:4326 EPSG:3857"
+    END
+  END
+
+  PROJECTION
+    "init=epsg:4326"
+  END
+
+  #============================================================================
+  # INFRARED - Grayscale (cold=white, warm=dark)
+  #============================================================================
+  LAYER
+    NAME "ir"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/goes/ir_4326.tif"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    CLASS
+      STYLE
+        COLORRANGE 255 255 255  0 0 0
+        DATARANGE 1900 3400
+      END
+    END
+    METADATA
+      "wms_title" "Infrared (Grayscale)"
+    END
+  END
+
+  #============================================================================
+  # INFRARED - Color
+  #============================================================================
+  LAYER
+    NAME "ir_color"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/goes/ir_4326.tif"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    CLASS
+      EXPRESSION ([pixel] >= 1470 AND [pixel] < 2100)
+      STYLE
+        COLORRANGE 255 255 255  0 255 255
+        DATARANGE 1470 2100
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 2100 AND [pixel] < 2600)
+      STYLE
+        COLORRANGE 0 255 255  50 150 255
+        DATARANGE 2100 2600
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 2600 AND [pixel] < 3000)
+      STYLE
+        COLORRANGE 50 150 255  255 255 100
+        DATARANGE 2600 3000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 3000)
+      STYLE
+        COLORRANGE 255 255 100  139 69 19
+        DATARANGE 3000 3500
+      END
+    END
+    METADATA
+      "wms_title" "Infrared (Color)"
+    END
+  END
+
+  #============================================================================
+  # VISIBLE - Grayscale
+  #============================================================================
+  LAYER
+    NAME "vis"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/goes/vis_4326.tif"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    CLASS
+      STYLE
+        COLORRANGE 0 0 0  255 255 255
+        DATARANGE 0 5200
+      END
+    END
+    METADATA
+      "wms_title" "Visible"
+    END
+  END
+
+  #============================================================================
+  # WATER VAPOR - Grayscale
+  #============================================================================
+  LAYER
+    NAME "wv"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/goes/wv_4326.tif"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    CLASS
+      STYLE
+        COLORRANGE 255 255 255  30 30 30
+        DATARANGE 1600 3300
+      END
+    END
+    METADATA
+      "wms_title" "Water Vapor"
+    END
+  END
+
+  #============================================================================
+  # SHORTWAVE IR
+  #============================================================================
+  LAYER
+    NAME "swir"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/goes/swir_4326.tif"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    CLASS
+      STYLE
+        COLORRANGE 0 0 0  255 255 255
+        DATARANGE 1800 4400
+      END
+    END
+    METADATA
+      "wms_title" "Shortwave IR"
+    END
+  END
+
+END

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GFS WMS Viewer</title>
+    <title>Weather Data Viewer - GFS / MRMS / GOES</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         html, body {
@@ -32,15 +32,144 @@
             font-size: 12px;
             color: #666;
         }
-        .leaflet-control-layers {
+        
+        /* Layer selector panel */
+        .layer-panel {
+            padding: 12px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
             max-height: 80vh;
             overflow-y: auto;
+            min-width: 240px;
         }
-        .leaflet-control-layers-expanded {
-            padding: 10px 14px;
+        .layer-panel h4 {
+            margin: 0 0 8px 0;
+            color: #333;
+            font-size: 14px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
         }
-        .leaflet-control-layers-separator {
-            margin: 8px 0;
+        
+        /* Data source tabs */
+        .source-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+        .source-tab {
+            flex: 1;
+            padding: 6px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid #ddd;
+            background: #f5f5f5;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .source-tab:hover {
+            background: #e8e8e8;
+        }
+        .source-tab.active {
+            background: #4a90d9;
+            color: white;
+            border-color: #3a7bc8;
+        }
+        .source-tab.gfs { border-top: 3px solid #e74c3c; }
+        .source-tab.mrms { border-top: 3px solid #2ecc71; }
+        .source-tab.goes { border-top: 3px solid #9b59b6; }
+        .source-tab.gfs.active { background: #e74c3c; border-color: #c0392b; }
+        .source-tab.mrms.active { background: #2ecc71; border-color: #27ae60; }
+        .source-tab.goes.active { background: #9b59b6; border-color: #8e44ad; }
+        
+        /* Source sections */
+        .source-section {
+            display: none;
+        }
+        .source-section.active {
+            display: block;
+        }
+        
+        .layer-group {
+            margin-bottom: 10px;
+        }
+        .layer-group-title {
+            font-weight: 600;
+            font-size: 11px;
+            color: #444;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .layer-group-title .icon {
+            font-size: 13px;
+        }
+        .style-buttons {
+            display: flex;
+            gap: 3px;
+            flex-wrap: wrap;
+        }
+        .style-btn {
+            padding: 3px 7px;
+            font-size: 10px;
+            border: 1px solid #ddd;
+            background: #f8f8f8;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .style-btn:hover {
+            background: #e8e8e8;
+            border-color: #ccc;
+        }
+        .style-btn.active {
+            background: #4a90d9;
+            color: white;
+            border-color: #3a7bc8;
+        }
+        
+        /* Style colors */
+        .style-btn.gradient { border-left: 2px solid #e74c3c; }
+        .style-btn.contour { border-left: 2px solid #3498db; }
+        .style-btn.numbers { border-left: 2px solid #2ecc71; }
+        .style-btn.gray { border-left: 2px solid #7f8c8d; }
+        .style-btn.enhanced { border-left: 2px solid #f39c12; }
+        .style-btn.color { border-left: 2px solid #9b59b6; }
+        .style-btn.fire { border-left: 2px solid #e67e22; }
+        
+        /* Base layer selector */
+        .base-layer-select {
+            width: 100%;
+            padding: 5px 8px;
+            font-size: 11px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            margin-bottom: 10px;
+        }
+        
+        /* Current layer display */
+        .current-layer {
+            background: #f0f7ff;
+            border: 1px solid #d0e3f7;
+            border-radius: 4px;
+            padding: 6px 8px;
+            margin-bottom: 10px;
+            font-size: 11px;
+        }
+        .current-layer strong {
+            color: #2c5aa0;
+        }
+        
+        /* Legend */
+        .legend-section {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+            font-size: 10px;
+            color: #666;
         }
     </style>
 </head>
@@ -49,16 +178,20 @@
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Initialize map centered on North America
+        // Initialize map centered on CONUS
         const map = L.map('map', {
-            center: [40, -95],
+            center: [38, -95],
             zoom: 4,
             maxZoom: 10,
             minZoom: 2
         });
 
-        // WMS base URL
-        const wmsUrl = 'http://localhost:8080/cgi-bin/mapserv?MAP=GFS&';
+        // WMS base URLs
+        const wmsUrls = {
+            GFS: 'http://localhost:8080/cgi-bin/mapserv?MAP=GFS&',
+            MRMS: 'http://localhost:8080/cgi-bin/mapserv?MAP=MRMS&',
+            GOES: 'http://localhost:8080/cgi-bin/mapserv?MAP=GOES&'
+        };
 
         // Base layers
         const baseLayers = {
@@ -79,63 +212,247 @@
         };
 
         // Add default base layer
-        baseLayers['Carto Light'].addTo(map);
+        let currentBaseLayer = baseLayers['Carto Dark'];
+        currentBaseLayer.addTo(map);
 
-        // Create WMS layer factory using ImageOverlay approach for seamless rendering
-        // Using L.tileLayer.wms with large tile size to reduce seams
-        function createWmsLayer(layerName, options = {}) {
-            return L.tileLayer.wms(wmsUrl, {
+        // Create WMS layer factory
+        function createWmsLayer(source, layerName, options = {}) {
+            return L.tileLayer.wms(wmsUrls[source], {
                 layers: layerName,
                 format: 'image/png',
                 transparent: true,
                 opacity: options.opacity || 0.75,
-                attribution: 'GFS Data via MapServer',
-                // Use larger tiles to minimize seam visibility
+                attribution: `${source} Data via MapServer`,
                 tileSize: 256,
-                // Disable tile caching issues
                 updateWhenIdle: false,
                 updateWhenZooming: false,
                 ...options
             });
         }
 
-        // GFS WMS Overlay Layers
-        const overlayLayers = {
-            '2m Temperature': createWmsLayer('t2m'),
-            '2m Relative Humidity': createWmsLayer('rh2m'),
-            'Wind Gust': createWmsLayer('gust'),
-            'Mean Sea Level Pressure': createWmsLayer('mslp'),
-            'Precipitable Water': createWmsLayer('pwat'),
-            'CAPE (Storm Energy)': createWmsLayer('cape'),
-            'Composite Reflectivity': createWmsLayer('refc'),
-            'Visibility': createWmsLayer('vis')
+        // ====================================================================
+        // LAYER DEFINITIONS
+        // ====================================================================
+        
+        // GFS Layers
+        const gfsLayers = {
+            t2m: {
+                name: '2m Temperature',
+                icon: '🌡️',
+                styles: {
+                    gradient: createWmsLayer('GFS', 't2m'),
+                    contour: createWmsLayer('GFS', 't2m_contour'),
+                    numbers: createWmsLayer('GFS', 't2m_numbers')
+                }
+            },
+            mslp: {
+                name: 'Sea Level Pressure',
+                icon: '📊',
+                styles: {
+                    gradient: createWmsLayer('GFS', 'mslp'),
+                    contour: createWmsLayer('GFS', 'mslp_contour'),
+                    numbers: createWmsLayer('GFS', 'mslp_numbers')
+                }
+            },
+            cape: {
+                name: 'CAPE (Storm Energy)',
+                icon: '⛈️',
+                styles: {
+                    gradient: createWmsLayer('GFS', 'cape'),
+                    contour: createWmsLayer('GFS', 'cape_contour'),
+                    numbers: createWmsLayer('GFS', 'cape_numbers')
+                }
+            },
+            pwat: {
+                name: 'Precipitable Water',
+                icon: '💧',
+                styles: {
+                    gradient: createWmsLayer('GFS', 'pwat'),
+                    contour: createWmsLayer('GFS', 'pwat_contour'),
+                    numbers: createWmsLayer('GFS', 'pwat_numbers')
+                }
+            },
+            rh2m: {
+                name: '2m Relative Humidity',
+                icon: '💦',
+                styles: { gradient: createWmsLayer('GFS', 'rh2m') }
+            },
+            gust: {
+                name: 'Wind Gust',
+                icon: '💨',
+                styles: { gradient: createWmsLayer('GFS', 'gust') }
+            },
+            refc: {
+                name: 'Simulated Reflectivity',
+                icon: '📡',
+                styles: { gradient: createWmsLayer('GFS', 'refc') }
+            },
+            vis: {
+                name: 'Visibility',
+                icon: '👁️',
+                styles: { gradient: createWmsLayer('GFS', 'vis') }
+            }
         };
 
-        // Track current overlay
-        let currentOverlay = overlayLayers['2m Temperature'];
-        currentOverlay.addTo(map);
-
-        // Add layer control
-        const layerControl = L.control.layers(baseLayers, overlayLayers, {
-            collapsed: false,
-            position: 'topright'
-        }).addTo(map);
-
-        // Handle overlay changes - ensure only one overlay at a time for performance
-        map.on('overlayadd', function(e) {
-            // Remove other overlays when a new one is added
-            Object.values(overlayLayers).forEach(layer => {
-                if (layer !== e.layer && map.hasLayer(layer)) {
-                    map.removeLayer(layer);
+        // MRMS Layers
+        const mrmsLayers = {
+            refl: {
+                name: 'Composite Reflectivity',
+                icon: '📡',
+                styles: {
+                    gradient: createWmsLayer('MRMS', 'refl'),
+                    contour: createWmsLayer('MRMS', 'refl_contour')
                 }
-            });
-            currentOverlay = e.layer;
+            },
+            precip_rate: {
+                name: 'Precipitation Rate',
+                icon: '🌧️',
+                styles: {
+                    gradient: createWmsLayer('MRMS', 'precip_rate'),
+                    contour: createWmsLayer('MRMS', 'precip_rate_contour')
+                }
+            },
+            qpe_01h: {
+                name: '1-Hour QPE',
+                icon: '⏱️',
+                styles: {
+                    gradient: createWmsLayer('MRMS', 'qpe_01h'),
+                    contour: createWmsLayer('MRMS', 'qpe_01h_contour')
+                }
+            },
+            base_refl: {
+                name: 'Base Reflectivity',
+                icon: '📶',
+                styles: { gradient: createWmsLayer('MRMS', 'base_refl') }
+            }
+        };
+
+        // GOES Layers (using simplified layer names from goes.map)
+        const goesLayers = {
+            ir: {
+                name: 'Infrared (Grayscale)',
+                icon: '🌡️',
+                styles: {
+                    gray: createWmsLayer('GOES', 'ir')
+                }
+            },
+            ir_color: {
+                name: 'Infrared (Color)',
+                icon: '🎨',
+                styles: {
+                    color: createWmsLayer('GOES', 'ir_color')
+                }
+            },
+            vis: {
+                name: 'Visible',
+                icon: '☀️',
+                styles: {
+                    gray: createWmsLayer('GOES', 'vis')
+                }
+            },
+            wv: {
+                name: 'Water Vapor',
+                icon: '💨',
+                styles: {
+                    gray: createWmsLayer('GOES', 'wv')
+                }
+            },
+            swir: {
+                name: 'Shortwave IR',
+                icon: '🔥',
+                styles: {
+                    gray: createWmsLayer('GOES', 'swir')
+                }
+            }
+        };
+
+        // All layer sources
+        const allSources = {
+            GFS: gfsLayers,
+            MRMS: mrmsLayers,
+            GOES: goesLayers
+        };
+
+        // Track current state
+        let currentOverlay = null;
+        let currentSource = 'GFS';
+        let currentLayerId = 't2m';
+        let currentStyle = 'gradient';
+
+        // Set layer function
+        function setLayer(source, layerId, style) {
+            // Remove current overlay
+            if (currentOverlay && map.hasLayer(currentOverlay)) {
+                map.removeLayer(currentOverlay);
+            }
+
+            const layerDef = allSources[source][layerId];
+            if (!layerDef || !layerDef.styles[style]) {
+                // Fallback to first available style
+                style = Object.keys(layerDef.styles)[0];
+            }
+
+            // Add new overlay
+            currentOverlay = layerDef.styles[style];
+            currentOverlay.addTo(map);
+            
+            currentSource = source;
+            currentLayerId = layerId;
+            currentStyle = style;
+
             // Apply current opacity
             const opacitySlider = document.getElementById('opacity-slider');
             if (opacitySlider) {
                 currentOverlay.setOpacity(opacitySlider.value / 100);
             }
-        });
+
+            // Update UI
+            updateButtonStates();
+            updateCurrentLayerDisplay();
+        }
+
+        function updateButtonStates() {
+            document.querySelectorAll('.style-btn').forEach(btn => {
+                const isActive = btn.dataset.source === currentSource && 
+                                 btn.dataset.layer === currentLayerId && 
+                                 btn.dataset.style === currentStyle;
+                btn.classList.toggle('active', isActive);
+            });
+            
+            document.querySelectorAll('.source-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.source === currentSource);
+            });
+            
+            document.querySelectorAll('.source-section').forEach(section => {
+                section.classList.toggle('active', section.dataset.source === currentSource);
+            });
+        }
+
+        function updateCurrentLayerDisplay() {
+            const display = document.getElementById('current-layer-display');
+            if (display) {
+                const layerDef = allSources[currentSource][currentLayerId];
+                display.innerHTML = `<strong>${currentSource}</strong>: ${layerDef.name} (${currentStyle})`;
+            }
+        }
+
+        // Generate layer buttons HTML
+        function generateLayerButtons(source, layers) {
+            let html = '';
+            for (const [id, def] of Object.entries(layers)) {
+                html += `<div class="layer-group">`;
+                html += `<div class="layer-group-title"><span class="icon">${def.icon}</span> ${def.name}</div>`;
+                html += `<div class="style-buttons">`;
+                
+                for (const style of Object.keys(def.styles)) {
+                    const label = style.charAt(0).toUpperCase() + style.slice(1);
+                    html += `<button class="style-btn ${style}" data-source="${source}" data-layer="${id}" data-style="${style}">${label}</button>`;
+                }
+                
+                html += `</div></div>`;
+            }
+            return html;
+        }
 
         // Info panel
         const info = L.control({position: 'topleft'});
@@ -146,27 +463,105 @@
         };
         info.update = function() {
             this._div.innerHTML = `
-                <h4>GFS WMS Viewer</h4>
-                <p><strong>Data:</strong> NOAA GFS 0.25&deg;</p>
-                <p><strong>Server:</strong> MapServer 8.2</p>
+                <h4>Weather Data Viewer</h4>
+                <p><strong>GFS:</strong> NOAA Global Forecast System</p>
+                <p><strong>MRMS:</strong> Multi-Radar Multi-Sensor</p>
+                <p><strong>GOES:</strong> GOES-16 Satellite</p>
                 <p style="margin-top: 10px;">
-                    <a href="http://localhost:8080/cgi-bin/mapserv?MAP=GFS&SERVICE=WMS&REQUEST=GetCapabilities" 
-                       target="_blank" style="font-size: 11px;">
-                        WMS GetCapabilities
-                    </a>
-                </p>
-                <p style="margin-top: 5px;">
-                    <a href="http://localhost:8089" target="_blank" style="font-size: 11px;">
-                        Locust Load Test
-                    </a>
-                    &nbsp;|&nbsp;
-                    <a href="http://localhost:3000" target="_blank" style="font-size: 11px;">
-                        Grafana
-                    </a>
+                    <a href="http://localhost:8089" target="_blank" style="font-size: 11px;">Locust</a> |
+                    <a href="http://localhost:3000" target="_blank" style="font-size: 11px;">Grafana</a> |
+                    <a href="http://localhost:8080/reports/" target="_blank" style="font-size: 11px;">Reports</a>
                 </p>
             `;
         };
         info.addTo(map);
+
+        // Layer selector panel
+        const layerPanel = L.control({position: 'topright'});
+        layerPanel.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'layer-panel');
+            
+            let html = '<h4>Layer Selection</h4>';
+            
+            // Current layer display
+            html += '<div class="current-layer" id="current-layer-display"><strong>GFS</strong>: 2m Temperature (gradient)</div>';
+            
+            // Base layer selector
+            html += '<select class="base-layer-select" id="base-layer-select">';
+            Object.keys(baseLayers).forEach(name => {
+                const selected = name === 'Carto Dark' ? 'selected' : '';
+                html += `<option value="${name}" ${selected}>${name}</option>`;
+            });
+            html += '</select>';
+            
+            // Source tabs
+            html += '<div class="source-tabs">';
+            html += '<button class="source-tab gfs active" data-source="GFS">GFS</button>';
+            html += '<button class="source-tab mrms" data-source="MRMS">MRMS</button>';
+            html += '<button class="source-tab goes" data-source="GOES">GOES</button>';
+            html += '</div>';
+            
+            // GFS section
+            html += '<div class="source-section active" data-source="GFS">';
+            html += generateLayerButtons('GFS', gfsLayers);
+            html += '</div>';
+            
+            // MRMS section
+            html += '<div class="source-section" data-source="MRMS">';
+            html += generateLayerButtons('MRMS', mrmsLayers);
+            html += '</div>';
+            
+            // GOES section
+            html += '<div class="source-section" data-source="GOES">';
+            html += generateLayerButtons('GOES', goesLayers);
+            html += '</div>';
+            
+            // Legend
+            html += `
+                <div class="legend-section">
+                    Data sources require download scripts to be run first.
+                    See README for details.
+                </div>
+            `;
+            
+            div.innerHTML = html;
+            
+            L.DomEvent.disableClickPropagation(div);
+            L.DomEvent.disableScrollPropagation(div);
+            
+            return div;
+        };
+        layerPanel.addTo(map);
+
+        // Event listeners for source tabs
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('source-tab')) {
+                const source = e.target.dataset.source;
+                // Switch to first layer of this source
+                const firstLayerId = Object.keys(allSources[source])[0];
+                const firstStyle = Object.keys(allSources[source][firstLayerId].styles)[0];
+                setLayer(source, firstLayerId, firstStyle);
+            }
+            
+            if (e.target.classList.contains('style-btn')) {
+                const source = e.target.dataset.source;
+                const layerId = e.target.dataset.layer;
+                const style = e.target.dataset.style;
+                setLayer(source, layerId, style);
+            }
+        });
+
+        // Base layer selector
+        document.addEventListener('change', function(e) {
+            if (e.target.id === 'base-layer-select') {
+                map.removeLayer(currentBaseLayer);
+                currentBaseLayer = baseLayers[e.target.value];
+                currentBaseLayer.addTo(map);
+                if (currentOverlay) {
+                    currentOverlay.bringToFront();
+                }
+            }
+        });
 
         // Coordinates display
         const coords = L.control({position: 'bottomleft'});
@@ -198,7 +593,6 @@
                 <span id="opacity-value" style="font-size: 11px; margin-left: 5px;">75%</span>
             `;
             
-            // Prevent map drag when using slider
             L.DomEvent.disableClickPropagation(div);
             
             return div;
@@ -210,11 +604,13 @@
             const opacity = e.target.value / 100;
             document.getElementById('opacity-value').textContent = e.target.value + '%';
             
-            // Update current overlay
             if (currentOverlay && map.hasLayer(currentOverlay)) {
                 currentOverlay.setOpacity(opacity);
             }
         });
+
+        // Initialize with default layer
+        setLayer('GFS', 't2m', 'gradient');
     </script>
 </body>
 </html>

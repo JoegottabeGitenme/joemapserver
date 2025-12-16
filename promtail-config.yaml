@@ -81,39 +81,69 @@ scrape_configs:
           job: nginx-errors
           __path__: /var/log/nginx/error.log
 
-  # MapServer logs (from Apache stderr)
+  # MapServer logs (from Docker container stderr via mod_fcgid)
   - job_name: mapserver
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
         refresh_interval: 5s
-        filters:
-          - name: name
-            values: [".*mapserver.*"]
     relabel_configs:
+      # Only keep mapserver container (name starts with /)
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/.*mapserver.*'
+        action: keep
+      # Set container label (strip leading /)
       - source_labels: ['__meta_docker_container_name']
         regex: '/(.*)'
         target_label: 'container'
+      # Override job label
+      - replacement: 'mapserver'
+        target_label: 'job'
     pipeline_stages:
-      # Parse MapServer debug output
+      # Extract layer render time: "msDrawMap(): Layer 0 (t2m), 0.066s"
       - regex:
-          expression: '^\[(?P<timestamp>[^\]]+)\]\.(?P<microseconds>\d+)\s+(?P<function>\w+)\(\):\s+(?P<message>.*)$'
+          expression: 'msDrawMap\(\): Layer \d+ \((?P<layer_name>[^)]+)\), (?P<layer_time>[\d.]+)s'
+      # Extract total render time: "msDrawMap() total time: 0.066s"
       - regex:
-          expression: 'msDrawMap\(\):\s+Layer\s+\d+\s+\((?P<layer_name>[^)]+)\),\s+(?P<layer_time>[\d.]+)s'
+          expression: 'msDrawMap\(\) total time: (?P<total_time>[\d.]+)s'
+      # Extract request processing time: "mapserv request processing time (msLoadMap not incl.): 0.067s"
       - regex:
-          expression: 'msDrawMap\(\)\s+total\s+time:\s+(?P<total_time>[\d.]+)s'
+          expression: 'mapserv request processing time.*: (?P<request_time>[\d.]+)s'
+      # Extract bucket creation time: "msDrawRasterGDAL_16BitClassification() bucket creation time: 0.013s"
+      - regex:
+          expression: '(?P<function>msDrawRasterGDAL_\w+)\(\)[^:]*: (?P<func_time>[\d.]+)s'
+      # Extract GDAL info
+      - regex:
+          expression: 'GDAL: (?P<gdal_message>.*)'
+      # Extract image save time: "msSaveImage(stdout) total time: 0.001s"
+      - regex:
+          expression: 'msSaveImage\([^)]+\) total time: (?P<save_time>[\d.]+)s'
+      # Add labels for querying
       - labels:
-          function:
           layer_name:
+          function:
+      # Create metrics from extracted values
       - metrics:
-          mapserver_layer_render_time:
+          mapserver_layer_render_seconds:
             type: Histogram
-            description: "MapServer layer render time"
+            description: "MapServer layer render time in seconds"
             source: layer_time
             config:
-              buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5]
-          mapserver_total_render_time:
+              buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5]
+          mapserver_total_render_seconds:
             type: Histogram
-            description: "MapServer total render time"
+            description: "MapServer total render time in seconds"
             source: total_time
             config:
-              buckets: [0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10]
+              buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+          mapserver_request_seconds:
+            type: Histogram
+            description: "MapServer request processing time in seconds"
+            source: request_time
+            config:
+              buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+          mapserver_save_image_seconds:
+            type: Histogram
+            description: "MapServer image save time in seconds"
+            source: save_time
+            config:
+              buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5]

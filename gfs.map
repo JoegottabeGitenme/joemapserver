@@ -4,12 +4,16 @@ MAP
   EXTENT -180 -90 180 90
   SIZE 256 256
   UNITS DD
-  # Debug level 2 = timing info for performance analysis
-  DEBUG 2
+  # Debug level 5 = maximum verbosity for performance profiling
+  DEBUG 5
   CONFIG "MS_ERRORFILE" "stderr"
   CONFIG "CPL_VSIL_CURL_ALLOWED_EXTENSIONS" ".grb2 .grib2 .nc"
-  # Enable GDAL debug for raster performance analysis
-  CONFIG "CPL_DEBUG" "OFF"
+  CONFIG "CPL_DEBUG" "ON"
+  CONFIG "GDAL_CACHEMAX" "512"
+  CONFIG "GDAL_PAM_ENABLED" "YES"
+
+  # Font for number labels
+  FONTSET "/etc/mapserver/fonts/fonts.txt"
 
   WEB
     METADATA
@@ -25,17 +29,21 @@ MAP
     "init=epsg:4326"
   END
 
-  # Temperature color ramp: blue (cold) -> cyan -> green -> yellow -> red (hot)
+  # Symbols
   SYMBOL
-    NAME "gradient"
+    NAME "circle"
     TYPE ELLIPSE
     POINTS 1 1 END
     FILLED TRUE
   END
 
-  # 2m Temperature (Band 580) - values typically 220K to 320K (-53C to 47C)
+  #============================================================================
+  # 2m TEMPERATURE - GRADIENT STYLE (default)
+  # Data is in Celsius: approx -52C to +42C
+  #============================================================================
   LAYER
     NAME "t2m"
+    GROUP "temperature"
     TYPE RASTER
     STATUS ON
     DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
@@ -43,54 +51,512 @@ MAP
     PROCESSING "RESAMPLE=BILINEAR"
     OFFSITE 0 0 0
     CLASS
-      EXPRESSION ([pixel] < 243)  # Below -30C - deep blue
+      NAME "< -30C"
+      EXPRESSION ([pixel] < -30)
       STYLE
         COLORRANGE 20 20 120  40 80 180
-        DATARANGE 220 243
+        DATARANGE -55 -30
       END
     END
     CLASS
-      EXPRESSION ([pixel] >= 243 AND [pixel] < 263)  # -30C to -10C - blue to cyan
+      NAME "-30C to -10C"
+      EXPRESSION ([pixel] >= -30 AND [pixel] < -10)
       STYLE
         COLORRANGE 40 80 180  80 180 220
-        DATARANGE 243 263
+        DATARANGE -30 -10
       END
     END
     CLASS
-      EXPRESSION ([pixel] >= 263 AND [pixel] < 278)  # -10C to 5C - cyan to green
+      NAME "-10C to 5C"
+      EXPRESSION ([pixel] >= -10 AND [pixel] < 5)
       STYLE
         COLORRANGE 80 180 220  80 200 80
-        DATARANGE 263 278
+        DATARANGE -10 5
       END
     END
     CLASS
-      EXPRESSION ([pixel] >= 278 AND [pixel] < 293)  # 5C to 20C - green to yellow
+      NAME "5C to 20C"
+      EXPRESSION ([pixel] >= 5 AND [pixel] < 20)
       STYLE
         COLORRANGE 80 200 80  240 240 60
-        DATARANGE 278 293
+        DATARANGE 5 20
       END
     END
     CLASS
-      EXPRESSION ([pixel] >= 293 AND [pixel] < 308)  # 20C to 35C - yellow to orange
+      NAME "20C to 35C"
+      EXPRESSION ([pixel] >= 20 AND [pixel] < 35)
       STYLE
         COLORRANGE 240 240 60  240 140 40
-        DATARANGE 293 308
+        DATARANGE 20 35
       END
     END
     CLASS
-      EXPRESSION ([pixel] >= 308)  # Above 35C - orange to red
+      NAME "> 35C"
+      EXPRESSION ([pixel] >= 35)
       STYLE
         COLORRANGE 240 140 40  180 20 20
-        DATARANGE 308 323
+        DATARANGE 35 50
       END
     END
     METADATA
-      "wms_title" "2m Temperature"
-      "wms_abstract" "Temperature at 2 meters above ground level (Kelvin)"
+      "wms_title" "2m Temperature (Gradient)"
+      "wms_abstract" "Temperature at 2 meters - gradient colormap"
+      "wms_style" "gradient"
     END
   END
 
-  # 2m Relative Humidity (Band 583) - 0 to 100%
+  #============================================================================
+  # 2m TEMPERATURE - CONTOUR STYLE
+  #============================================================================
+  LAYER
+    NAME "t2m_contour"
+    GROUP "temperature"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=580"
+    PROCESSING "CONTOUR_INTERVAL=5"
+    CLASS
+      NAME "Isotherms"
+      STYLE
+        COLOR 80 80 80
+        WIDTH 1.5
+      END
+      LABEL
+        COLOR 40 40 40
+        OUTLINECOLOR 255 255 255
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 8
+        POSITION AUTO
+        ANGLE FOLLOW
+        BUFFER 3
+        MINDISTANCE 200
+      END
+    END
+    METADATA
+      "wms_title" "2m Temperature (Contours)"
+      "wms_abstract" "Temperature contour lines every 5K"
+      "wms_style" "contour"
+    END
+  END
+
+  #============================================================================
+  # 2m TEMPERATURE - NUMBERS STYLE (uses contour with labels only)
+  # NOTE: This renders contour lines with prominent labels - simulates number display
+  #============================================================================
+  LAYER
+    NAME "t2m_numbers"
+    GROUP "temperature"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=580"
+    PROCESSING "CONTOUR_INTERVAL=10"
+    CLASS
+      NAME "Temperature Labels"
+      STYLE
+        COLOR 200 200 200
+        WIDTH 0.5
+      END
+      LABEL
+        COLOR 20 20 20
+        OUTLINECOLOR 255 255 255
+        OUTLINEWIDTH 2
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 11
+        POSITION AUTO
+        ANGLE FOLLOW
+        BUFFER 2
+        MINDISTANCE 80
+        FORCE TRUE
+        REPEATDISTANCE 150
+      END
+    END
+    METADATA
+      "wms_title" "2m Temperature (Numbers)"
+      "wms_abstract" "Temperature values with dense labels"
+      "wms_style" "numbers"
+    END
+  END
+
+  #============================================================================
+  # MSLP - GRADIENT STYLE
+  #============================================================================
+  LAYER
+    NAME "mslp"
+    GROUP "pressure"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=1"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 99000)
+      STYLE
+        COLORRANGE 100 50 150  150 100 200
+        DATARANGE 97000 99000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 99000 AND [pixel] < 101000)
+      STYLE
+        COLORRANGE 150 100 200  200 200 200
+        DATARANGE 99000 101000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 101000 AND [pixel] < 103000)
+      STYLE
+        COLORRANGE 200 200 200  100 150 200
+        DATARANGE 101000 103000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 103000)
+      STYLE
+        COLORRANGE 100 150 200  50 80 150
+        DATARANGE 103000 105000
+      END
+    END
+    METADATA
+      "wms_title" "Mean Sea Level Pressure (Gradient)"
+      "wms_abstract" "MSLP gradient colormap"
+      "wms_style" "gradient"
+    END
+  END
+
+  #============================================================================
+  # MSLP - CONTOUR STYLE (isobars)
+  #============================================================================
+  LAYER
+    NAME "mslp_contour"
+    GROUP "pressure"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=1"
+    PROCESSING "CONTOUR_INTERVAL=400"
+    CLASS
+      NAME "Isobars"
+      STYLE
+        COLOR 80 80 180
+        WIDTH 1.5
+      END
+      LABEL
+        COLOR 50 50 150
+        OUTLINECOLOR 255 255 255
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 9
+        POSITION AUTO
+        ANGLE FOLLOW
+        BUFFER 3
+        MINDISTANCE 150
+      END
+    END
+    METADATA
+      "wms_title" "Mean Sea Level Pressure (Contours)"
+      "wms_abstract" "MSLP isobars every 4 hPa"
+      "wms_style" "contour"
+    END
+  END
+
+  #============================================================================
+  # MSLP - NUMBERS STYLE (dense labels on thin contours)
+  #============================================================================
+  LAYER
+    NAME "mslp_numbers"
+    GROUP "pressure"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=1"
+    PROCESSING "CONTOUR_INTERVAL=200"
+    CLASS
+      NAME "Pressure Labels"
+      STYLE
+        COLOR 200 200 200
+        WIDTH 0.5
+      END
+      LABEL
+        COLOR 20 20 20
+        OUTLINECOLOR 255 255 255
+        OUTLINEWIDTH 2
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 10
+        POSITION AUTO
+        ANGLE FOLLOW
+        BUFFER 2
+        MINDISTANCE 80
+        FORCE TRUE
+        REPEATDISTANCE 120
+      END
+    END
+    METADATA
+      "wms_title" "Mean Sea Level Pressure (Numbers)"
+      "wms_abstract" "MSLP with dense value labels"
+      "wms_style" "numbers"
+    END
+  END
+
+  #============================================================================
+  # CAPE - GRADIENT STYLE
+  #============================================================================
+  LAYER
+    NAME "cape"
+    GROUP "instability"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=602"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 500)
+      STYLE
+        COLORRANGE 220 240 220  180 220 180
+        DATARANGE 0 500
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 500 AND [pixel] < 1500)
+      STYLE
+        COLORRANGE 180 220 180  240 240 100
+        DATARANGE 500 1500
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 1500 AND [pixel] < 3000)
+      STYLE
+        COLORRANGE 240 240 100  240 160 60
+        DATARANGE 1500 3000
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 3000)
+      STYLE
+        COLORRANGE 240 160 60  180 40 40
+        DATARANGE 3000 5000
+      END
+    END
+    METADATA
+      "wms_title" "CAPE (Gradient)"
+      "wms_abstract" "CAPE gradient colormap"
+      "wms_style" "gradient"
+    END
+  END
+
+  #============================================================================
+  # CAPE - CONTOUR STYLE
+  #============================================================================
+  LAYER
+    NAME "cape_contour"
+    GROUP "instability"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=602"
+    PROCESSING "CONTOUR_INTERVAL=500"
+    CLASS
+      NAME "CAPE Contours"
+      STYLE
+        COLOR 180 100 0
+        WIDTH 1.5
+      END
+      LABEL
+        COLOR 140 60 0
+        OUTLINECOLOR 255 255 255
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 8
+        POSITION AUTO
+        ANGLE FOLLOW
+        MINDISTANCE 200
+      END
+    END
+    METADATA
+      "wms_title" "CAPE (Contours)"
+      "wms_abstract" "CAPE contour lines every 500 J/kg"
+      "wms_style" "contour"
+    END
+  END
+
+  #============================================================================
+  # CAPE - NUMBERS STYLE (dense labels)
+  #============================================================================
+  LAYER
+    NAME "cape_numbers"
+    GROUP "instability"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=602"
+    PROCESSING "CONTOUR_INTERVAL=250"
+    CLASS
+      NAME "CAPE Labels"
+      STYLE
+        COLOR 200 200 200
+        WIDTH 0.5
+      END
+      LABEL
+        COLOR 20 20 20
+        OUTLINECOLOR 255 255 255
+        OUTLINEWIDTH 2
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 10
+        POSITION AUTO
+        ANGLE FOLLOW
+        BUFFER 2
+        MINDISTANCE 80
+        FORCE TRUE
+        REPEATDISTANCE 120
+      END
+    END
+    METADATA
+      "wms_title" "CAPE (Numbers)"
+      "wms_abstract" "CAPE with dense value labels"
+      "wms_style" "numbers"
+    END
+  END
+
+  #============================================================================
+  # PWAT - GRADIENT STYLE
+  #============================================================================
+  LAYER
+    NAME "pwat"
+    GROUP "moisture"
+    TYPE RASTER
+    STATUS ON
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=604"
+    PROCESSING "RESAMPLE=BILINEAR"
+    OFFSITE 0 0 0
+    CLASS
+      EXPRESSION ([pixel] < 15)
+      STYLE
+        COLORRANGE 255 255 220  200 230 180
+        DATARANGE 0 15
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 15 AND [pixel] < 30)
+      STYLE
+        COLORRANGE 200 230 180  120 200 160
+        DATARANGE 15 30
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 30 AND [pixel] < 45)
+      STYLE
+        COLORRANGE 120 200 160  60 150 200
+        DATARANGE 30 45
+      END
+    END
+    CLASS
+      EXPRESSION ([pixel] >= 45)
+      STYLE
+        COLORRANGE 60 150 200  30 60 140
+        DATARANGE 45 70
+      END
+    END
+    METADATA
+      "wms_title" "Precipitable Water (Gradient)"
+      "wms_abstract" "PWAT gradient colormap"
+      "wms_style" "gradient"
+    END
+  END
+
+  #============================================================================
+  # PWAT - CONTOUR STYLE
+  #============================================================================
+  LAYER
+    NAME "pwat_contour"
+    GROUP "moisture"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=604"
+    PROCESSING "CONTOUR_INTERVAL=10"
+    CLASS
+      NAME "PWAT Contours"
+      STYLE
+        COLOR 0 100 180
+        WIDTH 1.5
+      END
+      LABEL
+        COLOR 0 70 140
+        OUTLINECOLOR 255 255 255
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 8
+        POSITION AUTO
+        ANGLE FOLLOW
+        MINDISTANCE 200
+      END
+    END
+    METADATA
+      "wms_title" "Precipitable Water (Contours)"
+      "wms_abstract" "PWAT contour lines every 10 mm"
+      "wms_style" "contour"
+    END
+  END
+
+  #============================================================================
+  # PWAT - NUMBERS STYLE (dense labels)
+  #============================================================================
+  LAYER
+    NAME "pwat_numbers"
+    GROUP "moisture"
+    TYPE LINE
+    STATUS ON
+    CONNECTIONTYPE CONTOUR
+    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
+    PROCESSING "BANDS=604"
+    PROCESSING "CONTOUR_INTERVAL=5"
+    CLASS
+      NAME "PWAT Labels"
+      STYLE
+        COLOR 200 200 200
+        WIDTH 0.5
+      END
+      LABEL
+        COLOR 20 20 20
+        OUTLINECOLOR 255 255 255
+        OUTLINEWIDTH 2
+        FONT "dejavu-bold"
+        TYPE TRUETYPE
+        SIZE 10
+        POSITION AUTO
+        ANGLE FOLLOW
+        BUFFER 2
+        MINDISTANCE 80
+        FORCE TRUE
+        REPEATDISTANCE 120
+      END
+    END
+    METADATA
+      "wms_title" "Precipitable Water (Numbers)"
+      "wms_abstract" "PWAT with dense value labels"
+      "wms_style" "numbers"
+    END
+  END
+
+  #============================================================================
+  # Remaining layers with gradient only (for backward compatibility)
+  #============================================================================
+  
   LAYER
     NAME "rh2m"
     TYPE RASTER
@@ -129,11 +595,10 @@ MAP
     END
     METADATA
       "wms_title" "2m Relative Humidity"
-      "wms_abstract" "Relative humidity at 2 meters above ground level (%)"
+      "wms_abstract" "Relative humidity at 2 meters"
     END
   END
 
-  # Wind Gust (Band 14) - typically 0 to 50 m/s
   LAYER
     NAME "gust"
     TYPE RASTER
@@ -179,140 +644,10 @@ MAP
     END
     METADATA
       "wms_title" "Wind Gust"
-      "wms_abstract" "Wind speed gust at surface (m/s)"
+      "wms_abstract" "Wind gust speed at surface"
     END
   END
 
-  # Mean Sea Level Pressure (Band 1) - typically 97000 to 105000 Pa
-  LAYER
-    NAME "mslp"
-    TYPE RASTER
-    STATUS ON
-    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
-    PROCESSING "BANDS=1"
-    PROCESSING "RESAMPLE=BILINEAR"
-    OFFSITE 0 0 0
-    CLASS
-      EXPRESSION ([pixel] < 99000)
-      STYLE
-        COLORRANGE 100 50 150  150 100 200
-        DATARANGE 97000 99000
-      END
-    END
-    CLASS
-      EXPRESSION ([pixel] >= 99000 AND [pixel] < 101000)
-      STYLE
-        COLORRANGE 150 100 200  200 200 200
-        DATARANGE 99000 101000
-      END
-    END
-    CLASS
-      EXPRESSION ([pixel] >= 101000 AND [pixel] < 103000)
-      STYLE
-        COLORRANGE 200 200 200  100 150 200
-        DATARANGE 101000 103000
-      END
-    END
-    CLASS
-      EXPRESSION ([pixel] >= 103000)
-      STYLE
-        COLORRANGE 100 150 200  50 80 150
-        DATARANGE 103000 105000
-      END
-    END
-    METADATA
-      "wms_title" "Mean Sea Level Pressure"
-      "wms_abstract" "Pressure reduced to mean sea level (Pa)"
-    END
-  END
-
-  # Precipitable Water (Band 604) - typically 0 to 70 kg/m2
-  LAYER
-    NAME "pwat"
-    TYPE RASTER
-    STATUS ON
-    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
-    PROCESSING "BANDS=604"
-    PROCESSING "RESAMPLE=BILINEAR"
-    OFFSITE 0 0 0
-    CLASS
-      EXPRESSION ([pixel] < 15)
-      STYLE
-        COLORRANGE 255 255 220  200 230 180
-        DATARANGE 0 15
-      END
-    END
-    CLASS
-      EXPRESSION ([pixel] >= 15 AND [pixel] < 30)
-      STYLE
-        COLORRANGE 200 230 180  120 200 160
-        DATARANGE 15 30
-      END
-    END
-    CLASS
-      EXPRESSION ([pixel] >= 30 AND [pixel] < 45)
-      STYLE
-        COLORRANGE 120 200 160  60 150 200
-        DATARANGE 30 45
-      END
-    END
-    CLASS
-      EXPRESSION ([pixel] >= 45)
-      STYLE
-        COLORRANGE 60 150 200  30 60 140
-        DATARANGE 45 70
-      END
-    END
-    METADATA
-      "wms_title" "Precipitable Water"
-      "wms_abstract" "Total atmospheric column precipitable water (kg/m2)"
-    END
-  END
-
-  # CAPE (Band 602) - 0 to 5000+ J/kg
-  LAYER
-    NAME "cape"
-    TYPE RASTER
-    STATUS ON
-    DATA "/data/gfs.t12z.pgrb2.0p25.f000.grb2"
-    PROCESSING "BANDS=602"
-    PROCESSING "RESAMPLE=BILINEAR"
-    OFFSITE 0 0 0
-    CLASS
-      EXPRESSION ([pixel] < 500)
-      STYLE
-        COLORRANGE 220 240 220  180 220 180
-        DATARANGE 0 500
-      END
-    END
-    CLASS
-      EXPRESSION ([pixel] >= 500 AND [pixel] < 1500)
-      STYLE
-        COLORRANGE 180 220 180  240 240 100
-        DATARANGE 500 1500
-      END
-    END
-    CLASS
-      EXPRESSION ([pixel] >= 1500 AND [pixel] < 3000)
-      STYLE
-        COLORRANGE 240 240 100  240 160 60
-        DATARANGE 1500 3000
-      END
-    END
-    CLASS
-      EXPRESSION ([pixel] >= 3000)
-      STYLE
-        COLORRANGE 240 160 60  180 40 40
-        DATARANGE 3000 5000
-      END
-    END
-    METADATA
-      "wms_title" "CAPE"
-      "wms_abstract" "Convective Available Potential Energy (J/kg) - indicates thunderstorm potential"
-    END
-  END
-
-  # Composite Radar Reflectivity (Band 9) - typically -10 to 75 dBZ
   LAYER
     NAME "refc"
     TYPE RASTER
@@ -351,11 +686,10 @@ MAP
     END
     METADATA
       "wms_title" "Composite Reflectivity"
-      "wms_abstract" "Maximum/composite radar reflectivity (dBZ)"
+      "wms_abstract" "Simulated radar reflectivity"
     END
   END
 
-  # Visibility (Band 10) - 0 to 24000+ meters
   LAYER
     NAME "vis"
     TYPE RASTER
@@ -394,7 +728,7 @@ MAP
     END
     METADATA
       "wms_title" "Visibility"
-      "wms_abstract" "Surface visibility (meters)"
+      "wms_abstract" "Surface visibility"
     END
   END
 

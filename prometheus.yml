@@ -22,3 +22,8 @@ scrape_configs:
   - job_name: 'loki'
     static_configs:
       - targets: ['loki:3100']
+
+  # Node exporter for host metrics (CPU per core, memory, disk I/O)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
